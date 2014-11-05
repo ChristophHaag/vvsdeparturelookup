@@ -193,7 +193,5 @@ if __name__ == "__main__":
     else:
         print(sys.argv[0] + " [stationID|Station Name] limit [filter]")
         print(
-            "I don't know where to properly get the stationID the best. Go to http://www2.vvs.de/vvs/XSLT_STT_REQUEST, open the developer console and observe a search for the station. The form data will contain something like nameInfo_stt:5006008. This is your station id.")
-        print(
             "The request is for all lines that depart at the station. Limiting and filtering will first limit all lines and then filter.")
         print("Example: ./ass.py 5006008 20 S1")
