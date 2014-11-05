@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*-coding: utf-8 -*-
 
-#Most code taken from https://github.com/shackspace/vvass/blob/master/ass.py
+# Most code taken from https://github.com/shackspace/vvass/blob/master/ass.py
 
 import http.cookiejar
 import json
@@ -12,6 +12,7 @@ import sys
 import urllib.request
 import urllib.parse
 
+
 def isStationId(id):
     try:
         i = int(id)
@@ -21,31 +22,45 @@ def isStationId(id):
         return False
     return False
 
+
+def findstation(s):
+    """
+    Prints all candidates for the given station name and returns a list sorted after their quality. First is best, last is worst.
+    like: [{"name", "quality" (higher is better), "id"}, ...]
+    """
+    print(s + " is not a station id, searching....")
+    # http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf=Uhl
+    url = "http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf="
+    encodedStationid = urllib.parse.quote_plus(s)
+    repl = urllib.request.urlopen(url + encodedStationid).read().decode("UTF-8")
+    #func({...})
+    #print(repr(repl))
+    repl = repl[5:-2]  #TODO: not hardcoded
+    j = json.loads(repl)
+    name, best, quality = None, None, 0
+
+    candidates = []
+    print("Candidates:")
+    for i in j["stopFinder"]["points"]:
+        #what is anytype? It seems to be the one that is the right one
+        #better be sure and check type too
+        if i["anyType"] == "stop" or i["type"] == "stop":
+            print(i["name"] + " with id: " + str(i["ref"]["id"]) + " of type: " + i["type"] + "/" + i[
+                "anyType"] + " quality: " + str(i["quality"]))
+            candidates.append({"name": i["name"], "quality": i["quality"],
+                               "type": (i["type"] if not i["type"] == "any" else i["anyType"]), "id": i["ref"]["id"]})
+            if int(i["quality"]) > quality:
+                name = i["name"]
+                best = int(i["ref"]["id"])
+                quality = int(i["quality"])
+    print("\nBest match for " + s + ":\n" + name + " with id: " + str(best) + " and quality " + str(quality) + "\n")
+    stationids = sorted(candidates, key=lambda x: x["quality"])
+    return stationids
+
+
 def stationId(stationId, limit, line=None):
     if not isStationId(stationId):
-        print(stationId + " is not a station id, searching....")
-        #http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf=Uhl
-        url = "http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf="
-        encodedStationid = urllib.parse.quote_plus(stationId)
-        repl = urllib.request.urlopen(url + encodedStationid).read().decode("UTF-8")
-        #func({...})
-        #print(repr(repl))
-        repl = repl[5:-2] #TODO: not hardcoded
-        j = json.loads(repl)
-        name, best, quality = None, None, 0
-
-        print("Candidates:")
-        for i in j["stopFinder"]["points"]:
-            #what is anytype? It seems to be the one that is the right one
-            #better be sure and check type too
-            if i["anyType"] == "stop" or i["type"] == "stop":
-                print(i["name"] + " with id: "  + str(i["ref"]["id"]) + " of type: " + i["type"] + "/" + i["anyType"] + " quality: " + str(i["quality"]))
-                if int(i["quality"]) > quality:
-                    name = i["name"]
-                    best = int(i["ref"]["id"])
-                    quality = int(i["quality"])
-        print("\nBest match for " + stationId + ":\n" + name + " with id: " + str(best) + " and quality " + str(quality) + "\n")
-        stationId = best
+        stationId = findstation(stationId)[0]["id"]
     if len(str(stationId)) != 7:
         print("error: the station ID needs to be a 7 digit integer")
     efa = get_EFA_from_VVS(stationId, int(limit))
@@ -71,7 +86,7 @@ def stationId(stationId, limit, line=None):
 
 def get_EFA_from_VVS(stationId, lim):
     """send HTTP Request to VVS and return a xml string"""
-    #parameters needed for EFA
+    # parameters needed for EFA
     zocationServerActive = 1
     lsShowTrainsExplicit = 1
     stateless = 1
@@ -137,7 +152,7 @@ def get_EFA_from_VVS(stationId, lim):
 
 
 def parseEFA(efa):
-    """receive efa data and return a json object"""
+    """receive efa data"""
     root = ET.fromstring(efa)
     xmlDepartures = root.findall('./itdDepartureMonitorRequest/'
                                  + 'itdDepartureList/itdDeparture')
@@ -158,7 +173,7 @@ def parseEFA(efa):
         itdTime = departure.find('itdDateTime/itdTime')
         hour = fixdate(itdTime.attrib['hour'])
         minute = fixdate(itdTime.attrib['minute'])
-        #yyyymmddHHMM
+        # yyyymmddHHMM
         departureTime = hour + ":" + minute + " (" + day + "." + month + "." + year + ")"
         route = departure.find('itdServingLine/itdRouteDescText').text
 
