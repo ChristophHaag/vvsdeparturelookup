@@ -12,8 +12,17 @@ import sys
 import urllib.request
 import urllib.parse
 
+def isStationId(id):
+    try:
+        i = int(id)
+        if len(str(i)) == 7:
+            return True
+    except:
+        return False
+    return False
+
 def stationId(stationId, limit, line=None):
-    if not isinstance( stationId, int ) or len(str(int(stationId))) != 7:
+    if not isStationId(stationId):
         print(stationId + " is not a station id, searching....")
         #http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf=Uhl
         url = "http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf="
