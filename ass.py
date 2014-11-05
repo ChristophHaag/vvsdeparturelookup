@@ -1,56 +1,66 @@
 #!/usr/bin/python
-#-*-coding: utf-8 -*-
+# -*-coding: utf-8 -*-
 
-from flask import Flask, abort, request, redirect, jsonify, Response
-import json
-import simplejson
+#Most code taken from https://github.com/shackspace/vvass/blob/master/ass.py
+
 import http.cookiejar
+import json
 import urllib.request
 import time
 import xml.etree.ElementTree as ET
+import sys
+import urllib.request
+import urllib.parse
 
-app = Flask(__name__)
+def stationId(stationId, limit, line=None):
+    if not isinstance( stationId, int ) or len(str(int(stationId))) != 7:
+        print(stationId + " is not a station id, searching....")
+        #http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf=Uhl
+        url = "http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf="
+        encodedStationid = urllib.parse.quote_plus(stationId)
+        repl = urllib.request.urlopen(url + encodedStationid).read().decode("UTF-8")
+        #func({...})
+        #print(repr(repl))
+        repl = repl[5:-2] #TODO: not hardcoded
+        j = json.loads(repl)
+        name, best, quality = None, None, 0
 
-
-@app.route("/")
-def hello():
-    return "Hello World!"
-
-
-@app.route("/station/<int:stationId>")
-def stationId(stationId=None):
-    if stationId is None:
-        return jsonify(
-            status="error",
-            message="please specify a station ID!"
-            )
-
+        print("Candidates:")
+        for i in j["stopFinder"]["points"]:
+            #what is anytype? It seems to be the one that is the right one
+            #better be sure and check type too
+            if i["anyType"] == "stop" or i["type"] == "stop":
+                print(i["name"] + " with id: "  + str(i["ref"]["id"]) + " of type: " + i["type"] + "/" + i["anyType"] + " quality: " + str(i["quality"]))
+                if int(i["quality"]) > quality:
+                    name = i["name"]
+                    best = int(i["ref"]["id"])
+                    quality = int(i["quality"])
+        print("\nBest match for " + stationId + ":\n" + name + " with id: " + str(best) + " and quality " + str(quality) + "\n")
+        stationId = best
     if len(str(stationId)) != 7:
-        return jsonify(
-            status="error",
-            message="the station ID needs to be a 7 digit integer"
-            )
-    efa = get_EFA_from_VVS(stationId)
+        print("error: the station ID needs to be a 7 digit integer")
+    efa = get_EFA_from_VVS(stationId, int(limit))
 
     if efa == "ERROR":
-        return jsonify(
-            status="error",
-            message="Couldn't connect to the EFA, something is broken."
-            )
+        print("error:  Couldn't connect to the EFA, something is broken.")
 
-    parsed = parseEFA(efa)
-    
-    if isinstance(parsed, Response):
-        response = parsed
-        response.headers.add('Access-Control-Allow-Origin', '*')
+    stations = parseEFA(efa)
+    if line:
+        filteredstations = [s for s in stations["departures"] if s["symbol"] == line]
     else:
-        response = Response(parsed, content_type='application/json; charset=utf-8')
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        
-    return response
+        filteredstations = stations["departures"]
+    departures = [{"direction": s["direction"], "departure": s["departureTime"], "line": s["symbol"]} for s in
+                  filteredstations]
+
+    maxlen = 0
+    for i in departures:
+        if len(i["direction"]) > maxlen:
+            maxlen = len(i["direction"])
+    for i in departures:
+        print(("{0:6}{1:" + str(maxlen + 2) + "}{2}").format(i["line"], i["direction"], i["departure"]))
 
 
-def get_EFA_from_VVS(stationId):
+def get_EFA_from_VVS(stationId, lim):
     """send HTTP Request to VVS and return a xml string"""
     #parameters needed for EFA
     zocationServerActive = 1
@@ -60,7 +70,7 @@ def get_EFA_from_VVS(stationId):
     SpEncId = 0
     anySigWhenPerfectNoOtherMatches = 1
     #max amount of arrivals to be returned
-    limit = 5
+    limit = lim
     depArr = 'departure'
     type_dm = 'any'
     anyObjFilter_dm = 2
@@ -81,8 +91,8 @@ def get_EFA_from_VVS(stationId):
     url += '&stateless=%d' % stateless
     url += '&language=%s' % language
     url += '&SpEncId=%d' % SpEncId
-    url += '&anySigWhenPerfectNoOtherMatches=%d'\
-        % anySigWhenPerfectNoOtherMatches
+    url += '&anySigWhenPerfectNoOtherMatches=%d' \
+           % anySigWhenPerfectNoOtherMatches
     url += '&limit=%d' % limit
     url += '&depArr=%s' % depArr
     url += '&type_dm=%s' % type_dm
@@ -114,7 +124,7 @@ def get_EFA_from_VVS(stationId):
     if code != 200:
         return "ERROR"
 
-    return(data)
+    return (data)
 
 
 def parseEFA(efa):
@@ -123,9 +133,7 @@ def parseEFA(efa):
     xmlDepartures = root.findall('./itdDepartureMonitorRequest/'
                                  + 'itdDepartureList/itdDeparture')
     if len(xmlDepartures) == 0:
-        return jsonify(
-            status='error',
-            message='The EFA presented an empty itdDepartureList. Reason therefore might be an unknown station ID.')
+        print('error: The EFA presented an empty itdDepartureList. Reason therefore might be an unknown station ID.')
 
     departures = []
 
@@ -142,7 +150,7 @@ def parseEFA(efa):
         hour = fixdate(itdTime.attrib['hour'])
         minute = fixdate(itdTime.attrib['minute'])
         #yyyymmddHHMM
-        departureTime = year + month + day + hour + minute
+        departureTime = hour + ":" + minute + " (" + day + "." + month + "." + year + ")"
         route = departure.find('itdServingLine/itdRouteDescText').text
 
         ret = {'stopName': stopName,
@@ -153,14 +161,11 @@ def parseEFA(efa):
 
         departures.append(ret)
 
-    requestTime = timestr = time.strftime('%Y%m%d%H%M')
+    requestTime = time.strftime('%Y%m%d%H%M')
     dataset = {'status': 'success',
                'requestTime': requestTime,
                'departures': departures}
-    response = json.dumps(dataset, indent=4,
-                          separators=(',', ': '),
-                          ensure_ascii=False)
-    return response
+    return dataset
 
 
 def fixdate(date):
@@ -172,5 +177,14 @@ def fixdate(date):
 
 
 if __name__ == "__main__":
-    app.debug = True
-    app.run(host='0.0.0.0', port=8080)
+    if len(sys.argv) == 3:
+        stationId(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 4:
+        stationId(sys.argv[1], sys.argv[2], sys.argv[3])
+    else:
+        print(sys.argv[0] + " [stationID|Station Name] limit [filter]")
+        print(
+            "I don't know where to properly get the stationID the best. Go to http://www2.vvs.de/vvs/XSLT_STT_REQUEST, open the developer console and observe a search for the station. The form data will contain something like nameInfo_stt:5006008. This is your station id.")
+        print(
+            "The request is for all lines that depart at the station. Limiting and filtering will first limit all lines and then filter.")
+        print("Example: ./ass.py 5006008 20 S1")
