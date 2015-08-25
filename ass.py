@@ -7,6 +7,7 @@ import http.cookiejar
 import json
 import urllib.request
 import time
+import datetime
 import xml.etree.ElementTree as ET
 import sys
 import urllib.request
@@ -73,15 +74,25 @@ def stationId(stationId, limit, line=None):
         filteredstations = [s for s in stations["departures"] if s["symbol"] == line]
     else:
         filteredstations = stations["departures"]
-    departures = [{"direction": s["direction"], "departure": s["departureTime"], "line": s["symbol"]} for s in
+    departures = [{"direction": s["direction"], "departure": s["departureTime"], "line": s["symbol"], "delay": s["delay"]} for s in
                   filteredstations]
+    for d in departures:
+        if d["delay"] and d["delay"] != datetime.timedelta(minutes=0):
+            d["delaymins"] = str(int(d["delay"].seconds / 60)) + " minutes"
+            d["delayedtime"] = d["departure"] + d["delay"]
 
     maxlen = 0
+    delaylen = 0
     for i in departures:
         if len(i["direction"]) > maxlen:
             maxlen = len(i["direction"])
+        if "delaymins" in i and len(i["delaymins"]) > maxlen:
+            delaylen = len(i["delaymins"])
     for i in departures:
-        print(("{0:6}{1:" + str(maxlen + 2) + "}{2}").format(i["line"], i["direction"], i["departure"]))
+        s = ("{line:<6}{direction:<" + str(maxlen + 2) + "}{departure:%H:%M:%S}")
+        if "delaymins" in i: #TODO: aligning
+            s += " +{delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M:%S}"
+        print(s.format(**i))
 
 
 def get_EFA_from_VVS(stationId, lim):
@@ -111,7 +122,7 @@ def get_EFA_from_VVS(stationId, lim):
 
     url = 'http://www2.vvs.de/vvs/widget/XML_DM_REQUEST?'
     url += 'zocationServerActive=%d' % zocationServerActive
-    url += '&lsShowTrainsExplicit%d' % lsShowTrainsExplicit
+    url += '&lsShowTrainsExplicit=%d' % lsShowTrainsExplicit
     url += '&stateless=%d' % stateless
     url += '&language=%s' % language
     url += '&SpEncId=%d' % SpEncId
@@ -173,15 +184,22 @@ def parseEFA(efa):
         itdTime = departure.find('itdDateTime/itdTime')
         hour = fixdate(itdTime.attrib['hour'])
         minute = fixdate(itdTime.attrib['minute'])
+        delay = None
+        if "delay" in departure.find('itdServingLine/itdNoTrain').attrib:
+            d = str(departure.find('itdServingLine/itdNoTrain').attrib["delay"])
+            delay = datetime.timedelta(minutes=int(d))
+            #print("delay (" + direction + ") : " + str(delay))
         # yyyymmddHHMM
-        departureTime = hour + ":" + minute + " (" + day + "." + month + "." + year + ")"
+        departureTime = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute))
         route = departure.find('itdServingLine/itdRouteDescText').text
 
         ret = {'stopName': stopName,
                'symbol': symbol,
                'direction': direction,
                'departureTime': departureTime,
-               'route': route}
+               'route': route,
+                'delay': delay
+            }
 
         departures.append(ret)
 
