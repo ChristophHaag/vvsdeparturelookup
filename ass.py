@@ -87,9 +87,9 @@ def stationId(stationId, limit, line=None):
         if "delaymins" in i and len(i["delaymins"]) > maxlen:
             delaylen = len(i["delaymins"])
     for i in departures:
-        s = ("{line:<6}{direction:<" + str(maxlen + 2) + "}{departure:%H:%M:%S}")
+        s = ("{line:<6}{direction:<" + str(maxlen + 2) + "}{departure:%H:%M}")
         if "delaymins" in i: #TODO: aligning
-            s += " +{delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M:%S}"
+            s += " +{delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M}"
         print(s.format(**i))
 
 
