@@ -31,12 +31,10 @@ def findstation(s):
     """
     print(s + " is not a station id, searching....")
     # http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf=Uhl
-    url = "http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=func&suggest_macro=vvs&name_sf="
+    url = "http://www2.vvs.de/vvs/XSLT_STOPFINDER_REQUEST?jsonp=&suggest_macro=vvs&name_sf="
     encodedStationid = urllib.parse.quote_plus(s)
     repl = urllib.request.urlopen(url + encodedStationid).read().decode("UTF-8")
-    #func({...})
-    #print(repr(repl))
-    repl = repl[5:-2]  #TODO: not hardcoded
+    #repl = repl[5:-2]  # browser sends jsonp=func GET and gets javascript func{<our json>}. if we send jsonp="", then we get only json
     j = json.loads(repl)
     name, best, quality = None, None, 0
 
