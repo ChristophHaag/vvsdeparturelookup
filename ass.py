@@ -119,6 +119,7 @@ def get_EFA_from_VVS(stationId, lim):
     itdTimeHour = int(time.strftime('%H'))
     itdTimeMinute = int(time.strftime('%M'))
     useRealtime = 1
+    outputFormat = "JSON"
 
     url = 'http://www2.vvs.de/vvs/widget/XML_DM_REQUEST?'
     url += 'zocationServerActive=%d' % zocationServerActive
@@ -142,6 +143,7 @@ def get_EFA_from_VVS(stationId, lim):
     url += '&itdTimeHour=%d' % itdTimeHour
     url += '&itdTimeMinute=%d' % itdTimeMinute
     url += '&useRealtime=%d' % useRealtime
+    url += '&outputFormat=%s' % outputFormat
 
     cj = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.
@@ -164,40 +166,29 @@ def get_EFA_from_VVS(stationId, lim):
 
 def parseEFA(efa):
     """receive efa data"""
-    root = ET.fromstring(efa)
-    xmlDepartures = root.findall('./itdDepartureMonitorRequest/'
-                                 + 'itdDepartureList/itdDeparture')
-    if len(xmlDepartures) == 0:
-        print('error: The EFA presented an empty itdDepartureList. Reason therefore might be an unknown station ID.')
-
+    efaj = json.loads(efa.decode("utf-8"))
     departures = []
+    for departure in efaj["departureList"]:
+        stopName = departure['stopName']
 
-    for departure in xmlDepartures:
-        stopName = departure.attrib['stopName']
-        itdServingLine = departure.find('itdServingLine')
-        symbol = itdServingLine.attrib['symbol']
-        direction = itdServingLine.attrib['direction']
-        itdDate = departure.find('itdDateTime/itdDate')
-        year = itdDate.attrib['year']
-        month = fixdate(itdDate.attrib['month'])
-        day = fixdate(itdDate.attrib['day'])
-        itdTime = departure.find('itdDateTime/itdTime')
-        hour = fixdate(itdTime.attrib['hour'])
-        minute = fixdate(itdTime.attrib['minute'])
-        delay = None
-        if "delay" in departure.find('itdServingLine/itdNoTrain').attrib:
-            d = str(departure.find('itdServingLine/itdNoTrain').attrib["delay"])
-            delay = datetime.timedelta(minutes=int(d))
-            #print("delay (" + direction + ") : " + str(delay))
-        # yyyymmddHHMM
+        dT = departure["dateTime"]
+        year = dT['year']
+        month = dT['month']
+        day = dT['day']
+        hour = dT['hour']
+        minute = dT['minute']
         departureTime = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute))
-        route = departure.find('itdServingLine/itdRouteDescText').text
+
+        servline = departure['servingLine']
+        symbol = servline['symbol']
+        direction = servline['direction']
+        delayj = servline["delay"] if "delay" in servline else  "0"
+        delay = datetime.timedelta(minutes=int(delayj))
 
         ret = {'stopName': stopName,
                'symbol': symbol,
                'direction': direction,
                'departureTime': departureTime,
-               'route': route,
                 'delay': delay
             }
 
@@ -208,15 +199,6 @@ def parseEFA(efa):
                'requestTime': requestTime,
                'departures': departures}
     return dataset
-
-
-def fixdate(date):
-    """ fixes single digit date characters with a leading 0
-"""
-    if len(date) != 2:
-        date = '0' + date
-    return date
-
 
 if __name__ == "__main__":
     if len(sys.argv) == 3:
