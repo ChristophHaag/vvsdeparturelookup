@@ -40,7 +40,11 @@ def findstation(s):
 
     candidates = []
     print("Candidates:")
-    for i in j["stopFinder"]["points"]:
+    if "point" in j["stopFinder"]["points"]:
+        points = [j["stopFinder"]["points"]["point"]]
+    else:
+        points = j["stopFinder"]["points"]
+    for i in points:
         #what is anytype? It seems to be the one that is the right one
         #better be sure and check type too
         if i["anyType"] == "stop" or i["type"] == "stop":
