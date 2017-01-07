@@ -76,7 +76,7 @@ def stationId(stationId, limit, line=None):
         filteredstations = [s for s in stations["departures"] if s["symbol"] == line]
     else:
         filteredstations = stations["departures"]
-    departures = [{"direction": s["direction"], "departure": s["departureTime"], "line": s["symbol"], "delay": s["delay"]} for s in
+    departures = [{"direction": s["direction"], "departure": s["departureTime"], "line": s["symbol"], "delay": s["delay"], "track": s["track"]} for s in
                   filteredstations]
     for d in departures:
         if d["delay"] and d["delay"] != datetime.timedelta(minutes=0):
@@ -85,15 +85,21 @@ def stationId(stationId, limit, line=None):
 
     maxlen = 0
     delaylen = 0
+    tracklen = 0
+    linelen = 0
     for i in departures:
         if len(i["direction"]) > maxlen:
             maxlen = len(i["direction"])
         if "delaymins" in i and len(i["delaymins"]) > maxlen:
             delaylen = len(i["delaymins"])
+        if len(i["track"]) > tracklen:
+            tracklen = len(i["track"])
+        if len(i["line"]) > linelen:
+            linelen = len(i["line"])
     for i in departures:
-        s = ("{line:<6}{direction:<" + str(maxlen + 2) + "}{departure:%H:%M}")
+        s = ("{track:<" + str(tracklen + 2) + "} {line:<" + str(linelen + 2) + "} {direction:<" + str(maxlen + 2) + "}{departure:%H:%M}")
         if "delaymins" in i: #TODO: aligning
-            s += " +{delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M}"
+            s += " +({delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M})"
         print(s.format(**i))
 
 
@@ -168,7 +174,8 @@ def get_EFA_from_VVS(stationId, lim):
 
 def parseEFA(efa):
     """receive efa data"""
-    efaj = json.loads(efa.decode("latin-1"))
+    efaj = json.loads(efa.decode("utf8", "replace"))
+    #print(json.dumps(efaj, indent=2, sort_keys=True))
     departures = []
     for departure in efaj["departureList"]:
         stopName = departure['stopName']
@@ -186,12 +193,15 @@ def parseEFA(efa):
         direction = servline['direction']
         delayj = servline["delay"] if "delay" in servline else  "0"
         delay = datetime.timedelta(minutes=int(delayj))
+        track = departure["platformName"]
+        #print(symbol + ": " + track)
 
         ret = {'stopName': stopName,
                'symbol': symbol,
                'direction': direction,
                'departureTime': departureTime,
-                'delay': delay
+               'delay': delay,
+               'track': track
             }
 
         departures.append(ret)
