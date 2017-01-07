@@ -164,7 +164,7 @@ def get_EFA_from_VVS(stationId, lim):
 
 def parseEFA(efa):
     """receive efa data"""
-    efaj = json.loads(efa.decode("utf-8"))
+    efaj = json.loads(efa.decode("latin-1"))
     departures = []
     for departure in efaj["departureList"]:
         stopName = departure['stopName']
