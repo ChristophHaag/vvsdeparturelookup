@@ -99,7 +99,7 @@ def stationId(stationId, limit, line=None):
     for i in departures:
         s = ("{track:<" + str(tracklen + 2) + "} {line:<" + str(linelen + 2) + "} {direction:<" + str(maxlen + 2) + "}{departure:%H:%M}")
         if "delaymins" in i: #TODO: aligning
-            s += " +({delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M})"
+            s += " (+{delaymins:*<" + str(delaylen + 4) + "} -> {delayedtime:%H:%M})"
         print(s.format(**i))
 
 
